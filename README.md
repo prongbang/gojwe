@@ -1,6 +1,6 @@
 # gojwe
 
-JWE wrapper for Golang.
+JWE (AES/GCM A256GCM) wrapper for Golang.
 
 ## Install
 
