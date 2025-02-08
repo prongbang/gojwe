@@ -113,7 +113,10 @@ func BenchmarkXChaCha20Generate(b *testing.B) {
 		"exp": 999999999,
 	}
 	for i := 0; i < b.N; i++ {
-		_, _ = j.Generate(payload, aesGcmKey)
+		_, err := j.Generate(payload, xChaCha20Key)
+		if err != nil {
+			b.Fatal(err)
+		}
 	}
 }
 
@@ -121,7 +124,7 @@ func BenchmarkXChaCha20Parse(b *testing.B) {
 	j := gojwe.New(gojwe.XChaCha20)
 	jwe := "eyJhbGciOiJkaXIiLCJlbmMiOiJYQzIwUCIsIml2IjoiNDIzMzQwdFJyMHRZT1lRR1M5OVYzb3hVbzZxbHQ0eGsiLCJ0YWciOiJTa1BZeS1TM243Y2RlSVQ1bGQ1UDl3In0.d6MSkUX8HlGOkonJr2IcutfPSg.F-LyJPPAPCzA8buyo6DDwVNYQc4QdMTMjk95zaoT7IQ"
 	for i := 0; i < b.N; i++ {
-		_, _ = j.Parse(jwe, aesGcmKey)
+		_, _ = j.Parse(jwe, xChaCha20Key)
 	}
 }
 
@@ -129,6 +132,6 @@ func BenchmarkXChaCha20Verify(b *testing.B) {
 	j := gojwe.New(gojwe.XChaCha20)
 	jwe := "eyJhbGciOiJkaXIiLCJlbmMiOiJYQzIwUCIsIml2IjoiNDIzMzQwdFJyMHRZT1lRR1M5OVYzb3hVbzZxbHQ0eGsiLCJ0YWciOiJTa1BZeS1TM243Y2RlSVQ1bGQ1UDl3In0.d6MSkUX8HlGOkonJr2IcutfPSg.F-LyJPPAPCzA8buyo6DDwVNYQc4QdMTMjk95zaoT7IQ"
 	for i := 0; i < b.N; i++ {
-		_ = j.Verify(jwe, aesGcmKey)
+		_ = j.Verify(jwe, xChaCha20Key)
 	}
 }
