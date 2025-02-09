@@ -1,6 +1,6 @@
 # gojwe
 
-JWE (AES/GCM A256GCM, XChaCha20-Poly1305) wrapper for Golang.
+JWE (AES/GCM A256GCM, ChaCha20-Poly1305, XChaCha20-Poly1305) wrapper for Golang.
 
 ## Install
 
@@ -25,6 +25,15 @@ BenchmarkAesGcm256Parse-12       	  197023	      6048 ns/op
 BenchmarkAesGcm256Verify-12      	  198123	      6033 ns/op
 ```
 
+- Benchmark ChaCha20-Poly1305
+
+```shell
+cpu: Apple M4 Pro
+BenchmarkChaCha20Generate-12     	 1000000	      1124 ns/op
+BenchmarkChaCha20Parse-12        	 1000000	      1018 ns/op
+BenchmarkChaCha20Verify-12       	 1000000	      1004 ns/op
+```
+
 - Benchmark XChaCha20-Poly1305
 
 ```shell
@@ -38,6 +47,12 @@ BenchmarkXChaCha20Verify-12      	 1000000	      1087 ns/op
 
 ```go
 j := gojwe.New(gojwe.AESGCM256)
+```
+
+- New instance ChaCha20-Poly1305
+
+```go
+j := gojwe.New(gojwe.ChaCha20)
 ```
 
 - New instance XChaCha20-Poly1305

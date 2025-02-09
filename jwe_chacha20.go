@@ -9,17 +9,17 @@ import (
 	"strings"
 )
 
-type JweXChaCha20 struct {
+type JweChaCha20 struct {
 }
 
-func (j *JweXChaCha20) encrypt(payload []byte, key []byte) (*Serialize, error) {
-	aead, err := chacha20poly1305.NewX(key)
+func (j *JweChaCha20) encrypt(payload []byte, key []byte) (*Serialize, error) {
+	aead, err := chacha20poly1305.New(key)
 	if err != nil {
 		return nil, err
 	}
 
-	// Generate a 24-byte nonce (IV)
-	nonce := make([]byte, chacha20poly1305.NonceSizeX)
+	// Generate a 12-byte nonce (IV) for ChaCha20-Poly1305
+	nonce := make([]byte, chacha20poly1305.NonceSize)
 	_, err = rand.Read(nonce)
 	if err != nil {
 		return nil, err
@@ -40,7 +40,7 @@ func (j *JweXChaCha20) encrypt(payload []byte, key []byte) (*Serialize, error) {
 	return &Serialize{Iv: nonceB64, Cipher: cipherB64, Tag: tagB64}, nil
 }
 
-func (j *JweXChaCha20) Generate(payload map[string]any, key []byte) (string, error) {
+func (j *JweChaCha20) Generate(payload map[string]any, key []byte) (string, error) {
 	// Convert payload to string
 	payloadByte, err := json.Marshal(payload)
 	if err != nil {
@@ -53,8 +53,8 @@ func (j *JweXChaCha20) Generate(payload map[string]any, key []byte) (string, err
 		return "", err
 	}
 
-	// Create JWE Header
-	header := Header{Alg: "dir", Enc: "XC20P", Iv: serialize.Iv, Tag: serialize.Tag}
+	// Create JWE Header (change Alg to ChaCha20-Poly1305)
+	header := Header{Alg: "dir", Enc: "C20P", Iv: serialize.Iv, Tag: serialize.Tag}
 
 	// Encode header as Base64
 	headerJSON, _ := json.Marshal(header)
@@ -67,13 +67,12 @@ func (j *JweXChaCha20) Generate(payload map[string]any, key []byte) (string, err
 	return headerB64 + "." + serialize.Cipher + "." + signature, nil
 }
 
-func (j *JweXChaCha20) Verify(token string, key []byte) bool {
+func (j *JweChaCha20) Verify(token string, key []byte) bool {
 	claims, err := j.Parse(token, key)
-
 	return claims != nil && err == nil
 }
 
-func (j *JweXChaCha20) Parse(token string, key []byte) (map[string]any, error) {
+func (j *JweChaCha20) Parse(token string, key []byte) (map[string]any, error) {
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 {
 		return nil, fmt.Errorf("invalid JWE format")
@@ -104,7 +103,7 @@ func (j *JweXChaCha20) Parse(token string, key []byte) (map[string]any, error) {
 	fullCiphertext := append(ciphertext, tag...)
 
 	// Decrypt payload
-	aead, err := chacha20poly1305.NewX(key)
+	aead, err := chacha20poly1305.New(key)
 	if err != nil {
 		return nil, err
 	}
@@ -114,7 +113,7 @@ func (j *JweXChaCha20) Parse(token string, key []byte) (map[string]any, error) {
 		return nil, fmt.Errorf("decryption failed: %v", err)
 	}
 
-	// Parse the decrypted payload to check expiration time
+	// Parse the decrypted payload
 	claims := map[string]any{}
 	if err = json.Unmarshal(plaintext, &claims); err != nil {
 		return nil, err
