@@ -1,15 +1,16 @@
 package gojwe
 
 import (
+	"crypto/hmac"
 	"crypto/rand"
 	"encoding/base64"
-	"fmt"
 	"github.com/goccy/go-json"
 	"golang.org/x/crypto/chacha20poly1305"
 	"strings"
 )
 
 type JweChaCha20 struct {
+	opts options
 }
 
 func (j *JweChaCha20) encrypt(payload []byte, key []byte) (*Serialize, error) {
@@ -41,6 +42,10 @@ func (j *JweChaCha20) encrypt(payload []byte, key []byte) (*Serialize, error) {
 }
 
 func (j *JweChaCha20) Generate(payload map[string]any, key []byte) (string, error) {
+	if err := validateKey(key); err != nil {
+		return "", err
+	}
+
 	// Convert payload to string
 	payloadByte, err := json.Marshal(payload)
 	if err != nil {
@@ -73,9 +78,13 @@ func (j *JweChaCha20) Verify(token string, key []byte) bool {
 }
 
 func (j *JweChaCha20) Parse(token string, key []byte) (map[string]any, error) {
+	if err := validateKey(key); err != nil {
+		return nil, err
+	}
+
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 {
-		return nil, fmt.Errorf("invalid JWE format")
+		return nil, ErrInvalidToken
 	}
 
 	headerB64, cipherB64, receivedSignature := parts[0], parts[1], parts[2]
@@ -88,10 +97,10 @@ func (j *JweChaCha20) Parse(token string, key []byte) (map[string]any, error) {
 		return nil, err
 	}
 
-	// Verify signature
+	// Verify signature using a constant-time comparison to avoid timing attacks
 	expectedSignature := HMAC(headerB64, cipherB64, key)
-	if receivedSignature != expectedSignature {
-		return nil, fmt.Errorf("invalid signature")
+	if !hmac.Equal([]byte(receivedSignature), []byte(expectedSignature)) {
+		return nil, ErrInvalidSignature
 	}
 
 	// Decode nonce, ciphertext, and tag
@@ -99,8 +108,10 @@ func (j *JweChaCha20) Parse(token string, key []byte) (map[string]any, error) {
 	tag, _ := base64.RawURLEncoding.DecodeString(header.Tag)
 	ciphertext, _ := base64.RawURLEncoding.DecodeString(cipherB64)
 
-	// Append tag back to ciphertext for decryption
-	fullCiphertext := append(ciphertext, tag...)
+	// Join ciphertext and tag into a single buffer for decryption
+	fullCiphertext := make([]byte, 0, len(ciphertext)+len(tag))
+	fullCiphertext = append(fullCiphertext, ciphertext...)
+	fullCiphertext = append(fullCiphertext, tag...)
 
 	// Decrypt payload
 	aead, err := chacha20poly1305.New(key)
@@ -110,12 +121,17 @@ func (j *JweChaCha20) Parse(token string, key []byte) (map[string]any, error) {
 
 	plaintext, err := aead.Open(nil, nonce, fullCiphertext, nil)
 	if err != nil {
-		return nil, fmt.Errorf("decryption failed: %v", err)
+		return nil, ErrInvalidSignature
 	}
 
 	// Parse the decrypted payload
 	claims := map[string]any{}
 	if err = json.Unmarshal(plaintext, &claims); err != nil {
+		return nil, err
+	}
+
+	// Validate standard time-based claims (exp/nbf)
+	if err = validateTimeClaims(claims, j.opts); err != nil {
 		return nil, err
 	}
 

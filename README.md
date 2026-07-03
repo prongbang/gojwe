@@ -10,7 +10,23 @@ go get github.com/prongbang/gojwe
 
 ## How to use
 
-- Random Secret Key
+## Features
+
+- 🔒 **Secure by default** — automatic `exp` / `nbf` claim validation (with clock-skew leeway) and constant-time signature comparison to prevent timing attacks.
+- ⚡ **Easy to use** — built-in key generation, typed sentinel errors for `errors.Is`, and a safe constructor.
+- 🚀 **Fast** — ChaCha20 / XChaCha20 run at ~1µs/op.
+
+## Random Secret Key
+
+Generate a secure 32-byte key in Go (no `openssl` needed):
+
+```go
+key, err := gojwe.GenerateKey()   // returns ([]byte, error)
+// or, panic on failure (handy for tests/tooling):
+key := gojwe.MustGenerateKey()
+```
+
+Or from the shell:
 
 ```shell
 openssl rand -hex 32
@@ -88,4 +104,54 @@ key, _ := hex.DecodeString("bdacaf398071931518f73917cb0c6f04b3a0ab45ee9cbedc2580
 
 accessToken := "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJleHAiOjk5OTk5OTk5OTk5fQ.rMKkGe6riuLZ3boYiMZsk5xrT7S-7VK6gZmFs1_7kKtVUkpvGatudYI5ZSkwIQ-iJKp2XskCxzn_6fVkCohtUQ"
 valid := j.Verify(accessToken, key)
+```
+
+## Expiration & validation
+
+`Parse` and `Verify` automatically validate the standard time-based claims when
+they are present:
+
+- `exp` (expiration) — rejected with `ErrTokenExpired` once past.
+- `nbf` (not before) — rejected with `ErrTokenNotYetValid` until reached.
+
+A default clock-skew tolerance of 30s (`gojwe.DefaultLeeway`) is applied. Tune or
+disable it via options:
+
+```go
+// Custom clock-skew tolerance
+j := gojwe.New(gojwe.ChaCha20, gojwe.WithLeeway(2*time.Minute))
+
+// Skip time validation and get raw claims back
+j := gojwe.New(gojwe.ChaCha20, gojwe.WithoutTimeValidation())
+```
+
+## Typed errors
+
+Handle failures precisely with `errors.Is`:
+
+```go
+claims, err := j.Parse(token, key)
+switch {
+case errors.Is(err, gojwe.ErrTokenExpired):
+    // token expired
+case errors.Is(err, gojwe.ErrInvalidSignature):
+    // tampered or wrong key
+case errors.Is(err, gojwe.ErrInvalidKeySize):
+    // key is not 32 bytes
+}
+```
+
+Available: `ErrUnsupportedAlgorithm`, `ErrInvalidKeySize`, `ErrInvalidToken`,
+`ErrInvalidSignature`, `ErrTokenExpired`, `ErrTokenNotYetValid`.
+
+## Safe constructor
+
+`New` returns `nil` for an unknown algorithm. Use `NewWithError` to fail fast
+instead of risking a nil-pointer panic:
+
+```go
+j, err := gojwe.NewWithError(alg)
+if err != nil {
+    // errors.Is(err, gojwe.ErrUnsupportedAlgorithm)
+}
 ```

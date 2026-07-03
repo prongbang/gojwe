@@ -7,9 +7,14 @@ import (
 )
 
 type JweAesGcm256 struct {
+	opts options
 }
 
 func (j *JweAesGcm256) Generate(payload map[string]any, key []byte) (string, error) {
+	if err := validateKey(key); err != nil {
+		return "", err
+	}
+
 	// Convert payload to string
 	payloadByte, err := json.Marshal(payload)
 	if err != nil {
@@ -31,14 +36,23 @@ func (j *JweAesGcm256) Verify(token string, key []byte) bool {
 }
 
 func (j *JweAesGcm256) Parse(token string, key []byte) (map[string]any, error) {
+	if err := validateKey(key); err != nil {
+		return nil, err
+	}
+
 	decrypted, err := jwe.Decrypt([]byte(token), jwe.WithKey(jwa.A256GCMKW, key))
 	if err != nil {
 		return nil, err
 	}
 
-	// Parse the decrypted payload to check expiration time
+	// Parse the decrypted payload
 	claims := map[string]any{}
 	if err = json.Unmarshal(decrypted, &claims); err != nil {
+		return nil, err
+	}
+
+	// Validate standard time-based claims (exp/nbf)
+	if err = validateTimeClaims(claims, j.opts); err != nil {
 		return nil, err
 	}
 
