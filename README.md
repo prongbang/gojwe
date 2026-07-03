@@ -125,6 +125,38 @@ j := gojwe.New(gojwe.ChaCha20, gojwe.WithLeeway(2*time.Minute))
 j := gojwe.New(gojwe.ChaCha20, gojwe.WithoutTimeValidation())
 ```
 
+## Registered claims (typed)
+
+Work with the standard JWT claims (`iss`, `sub`, `aud`, `exp`, `nbf`, `iat`,
+`jti`) as a struct instead of poking at a `map[string]any`. Embed
+`RegisteredClaims` in your own type to add custom fields:
+
+```go
+type MyClaims struct {
+    gojwe.RegisteredClaims
+    Role string `json:"role"`
+}
+
+j := gojwe.New(gojwe.ChaCha20)
+
+// Generate from a typed struct
+token, _ := gojwe.GenerateClaims(j, MyClaims{
+    RegisteredClaims: gojwe.RegisteredClaims{
+        Subject:   "user-1",
+        Audience:  gojwe.ClaimStrings{"api"},
+        ExpiresAt: gojwe.NewNumericDate(time.Now().Add(time.Hour)),
+    },
+    Role: "admin",
+}, key)
+
+// Parse straight into your struct (exp/nbf are validated automatically)
+claims, err := gojwe.ParseClaims[MyClaims](j, token, key)
+fmt.Println(claims.Subject, claims.Role, claims.ExpiresAt.Time)
+```
+
+- `NumericDate` marshals to/from Unix seconds — use `gojwe.NewNumericDate(t)`.
+- `ClaimStrings` (used by `aud`) accepts a single string or an array of strings.
+
 ## Typed errors
 
 Handle failures precisely with `errors.Is`:
