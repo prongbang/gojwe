@@ -202,44 +202,78 @@ func ParseClaims[T any](j JWE, token string, key []byte) (T, error) {
 	if err := json.Unmarshal(b, &claims); err != nil {
 		return claims, err
 	}
-	if err := validateParsedTime(claims, b, rc.getOptions()); err != nil {
+	if err := validateParsedClaims(claims, b, rc.getOptions()); err != nil {
 		return claims, err
 	}
 	return claims, nil
 }
 
-// validateParsedTime enforces exp/nbf on an already-parsed claims value. When
-// the value implements timeClaimsAccessor (i.e. embeds RegisteredClaims) the
-// times are read straight from it; otherwise they are pulled from the raw JSON
-// with a single lightweight unmarshal.
-func validateParsedTime(claims any, raw []byte, opts options) error {
-	if !opts.validateTime {
+// validateParsedClaims enforces the registered claims on an already-parsed
+// value. When the value implements claimsAccessor (i.e. embeds RegisteredClaims)
+// the claims are read straight from it; otherwise they are pulled from the raw
+// JSON with a single lightweight unmarshal.
+func validateParsedClaims(claims any, raw []byte, opts options) error {
+	if !opts.needsValidation() {
 		return nil
 	}
 	now := nowFunc()
 
-	if acc, ok := claims.(timeClaimsAccessor); ok {
-		if exp, _ := acc.GetExpirationTime(); exp != nil && now.After(exp.Add(opts.leeway)) {
-			return ErrTokenExpired
+	if acc, ok := claims.(claimsAccessor); ok {
+		if opts.validateTime {
+			if exp, _ := acc.GetExpirationTime(); exp != nil && now.After(exp.Add(opts.leeway)) {
+				return ErrTokenExpired
+			}
+			if nbf, _ := acc.GetNotBefore(); nbf != nil && now.Add(opts.leeway).Before(nbf.Time) {
+				return ErrTokenNotYetValid
+			}
+			if opts.validateIat {
+				if iat, _ := acc.GetIssuedAt(); iat != nil && iat.After(now.Add(opts.leeway)) {
+					return ErrTokenUsedBeforeIssued
+				}
+			}
 		}
-		if nbf, _ := acc.GetNotBefore(); nbf != nil && now.Add(opts.leeway).Before(nbf.Time) {
-			return ErrTokenNotYetValid
+		if opts.expectedIss != "" {
+			if iss, _ := acc.GetIssuer(); iss != opts.expectedIss {
+				return ErrInvalidIssuer
+			}
+		}
+		if opts.expectedAud != "" {
+			aud, _ := acc.GetAudience()
+			if !audienceContains(aud, opts.expectedAud) {
+				return ErrInvalidAudience
+			}
 		}
 		return nil
 	}
 
+	// Fallback: the struct does not expose the registered-claim getters, so
+	// pull the standard claims out of the raw JSON with one small unmarshal.
 	var tc struct {
-		Exp *float64 `json:"exp"`
-		Nbf *float64 `json:"nbf"`
+		Exp *float64     `json:"exp"`
+		Nbf *float64     `json:"nbf"`
+		Iat *float64     `json:"iat"`
+		Iss string       `json:"iss"`
+		Aud ClaimStrings `json:"aud"`
 	}
 	if err := json.Unmarshal(raw, &tc); err != nil {
-		return nil // no recognizable time claims to enforce
+		return nil // no recognizable registered claims to enforce
 	}
-	if tc.Exp != nil && now.After(time.Unix(int64(*tc.Exp), 0).Add(opts.leeway)) {
-		return ErrTokenExpired
+	if opts.validateTime {
+		if tc.Exp != nil && now.After(time.Unix(int64(*tc.Exp), 0).Add(opts.leeway)) {
+			return ErrTokenExpired
+		}
+		if tc.Nbf != nil && now.Add(opts.leeway).Before(time.Unix(int64(*tc.Nbf), 0)) {
+			return ErrTokenNotYetValid
+		}
+		if opts.validateIat && tc.Iat != nil && time.Unix(int64(*tc.Iat), 0).After(now.Add(opts.leeway)) {
+			return ErrTokenUsedBeforeIssued
+		}
 	}
-	if tc.Nbf != nil && now.Add(opts.leeway).Before(time.Unix(int64(*tc.Nbf), 0)) {
-		return ErrTokenNotYetValid
+	if opts.expectedIss != "" && tc.Iss != opts.expectedIss {
+		return ErrInvalidIssuer
+	}
+	if opts.expectedAud != "" && !audienceContains(tc.Aud, opts.expectedAud) {
+		return ErrInvalidAudience
 	}
 	return nil
 }

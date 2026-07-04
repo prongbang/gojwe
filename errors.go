@@ -23,4 +23,16 @@ var (
 
 	// ErrTokenNotYetValid is returned when the "nbf" claim is in the future.
 	ErrTokenNotYetValid = errors.New("gojwe: token is not valid yet")
+
+	// ErrTokenUsedBeforeIssued is returned when the "iat" claim is in the future
+	// and issued-at validation is enabled via WithIssuedAtValidation.
+	ErrTokenUsedBeforeIssued = errors.New("gojwe: token used before issued")
+
+	// ErrInvalidAudience is returned when the "aud" claim does not contain the
+	// audience configured with WithAudience.
+	ErrInvalidAudience = errors.New("gojwe: invalid audience")
+
+	// ErrInvalidIssuer is returned when the "iss" claim does not match the
+	// issuer configured with WithIssuer.
+	ErrInvalidIssuer = errors.New("gojwe: invalid issuer")
 )

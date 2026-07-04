@@ -61,7 +61,7 @@ func TestChaCha20Verify(t *testing.T) {
 			name: "Should return true when verify success",
 			args: args{
 				key:   chaCha20Key,
-				token: "eyJhbGciOiJkaXIiLCJlbmMiOiJDMjBQIiwiaXYiOiI4anpnczN0WnczYmpnMkpKIiwidGFnIjoiN3l5UmJhSDRtMjlKVm9YY2E0bnR1ZyJ9.m-zFgnUbuss0Ju1YfE8R1naxCQ.Xkpx9QtDkRR4Tp5DH4pJ89i2Zy7KzrJ7uAt1Cyak2sA",
+				token: "eyJhbGciOiJkaXIiLCJlbmMiOiJDMjBQIiwiaXYiOiIyU0M3aFhtQTVScGxIZllwIiwidGFnIjoiWjV6dVB1REZLVDU4LTZqajFiVENIUSJ9.8N8nO9Oh0jpWv2aXQRz9qrUKIw.q7tqbWfPsWTI97wP6xPSeoJTcPiBlVDNzOFmp4qXNlo",
 			},
 			want: true,
 		},
@@ -91,7 +91,7 @@ func TestChaCha20Parse(t *testing.T) {
 			name: "Should return exp payload when parse success",
 			args: args{
 				key:   chaCha20Key,
-				token: "eyJhbGciOiJkaXIiLCJlbmMiOiJDMjBQIiwiaXYiOiI4anpnczN0WnczYmpnMkpKIiwidGFnIjoiN3l5UmJhSDRtMjlKVm9YY2E0bnR1ZyJ9.m-zFgnUbuss0Ju1YfE8R1naxCQ.Xkpx9QtDkRR4Tp5DH4pJ89i2Zy7KzrJ7uAt1Cyak2sA",
+				token: "eyJhbGciOiJkaXIiLCJlbmMiOiJDMjBQIiwiaXYiOiIyU0M3aFhtQTVScGxIZllwIiwidGFnIjoiWjV6dVB1REZLVDU4LTZqajFiVENIUSJ9.8N8nO9Oh0jpWv2aXQRz9qrUKIw.q7tqbWfPsWTI97wP6xPSeoJTcPiBlVDNzOFmp4qXNlo",
 			},
 			want:    "99999999999",
 			wantErr: false,
@@ -122,7 +122,7 @@ func BenchmarkChaCha20Generate(b *testing.B) {
 
 func BenchmarkChaCha20Parse(b *testing.B) {
 	j := gojwe.New(gojwe.ChaCha20)
-	jwe := "eyJhbGciOiJkaXIiLCJlbmMiOiJDMjBQIiwiaXYiOiI4anpnczN0WnczYmpnMkpKIiwidGFnIjoiN3l5UmJhSDRtMjlKVm9YY2E0bnR1ZyJ9.m-zFgnUbuss0Ju1YfE8R1naxCQ.Xkpx9QtDkRR4Tp5DH4pJ89i2Zy7KzrJ7uAt1Cyak2sA"
+	jwe := "eyJhbGciOiJkaXIiLCJlbmMiOiJDMjBQIiwiaXYiOiIyU0M3aFhtQTVScGxIZllwIiwidGFnIjoiWjV6dVB1REZLVDU4LTZqajFiVENIUSJ9.8N8nO9Oh0jpWv2aXQRz9qrUKIw.q7tqbWfPsWTI97wP6xPSeoJTcPiBlVDNzOFmp4qXNlo"
 	for i := 0; i < b.N; i++ {
 		_, _ = j.Parse(jwe, chaCha20Key)
 	}
@@ -130,7 +130,7 @@ func BenchmarkChaCha20Parse(b *testing.B) {
 
 func BenchmarkChaCha20Verify(b *testing.B) {
 	j := gojwe.New(gojwe.ChaCha20)
-	jwe := "eyJhbGciOiJkaXIiLCJlbmMiOiJDMjBQIiwiaXYiOiI4anpnczN0WnczYmpnMkpKIiwidGFnIjoiN3l5UmJhSDRtMjlKVm9YY2E0bnR1ZyJ9.m-zFgnUbuss0Ju1YfE8R1naxCQ.Xkpx9QtDkRR4Tp5DH4pJ89i2Zy7KzrJ7uAt1Cyak2sA"
+	jwe := "eyJhbGciOiJkaXIiLCJlbmMiOiJDMjBQIiwiaXYiOiIyU0M3aFhtQTVScGxIZllwIiwidGFnIjoiWjV6dVB1REZLVDU4LTZqajFiVENIUSJ9.8N8nO9Oh0jpWv2aXQRz9qrUKIw.q7tqbWfPsWTI97wP6xPSeoJTcPiBlVDNzOFmp4qXNlo"
 	for i := 0; i < b.N; i++ {
 		_ = j.Verify(jwe, chaCha20Key)
 	}

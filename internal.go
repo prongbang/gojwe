@@ -14,10 +14,13 @@ type rawCodec interface {
 	getOptions() options
 }
 
-// timeClaimsAccessor is satisfied by RegisteredClaims (and anything embedding
-// it), letting ParseClaims validate exp/nbf straight from the parsed struct
-// without a second unmarshal.
-type timeClaimsAccessor interface {
+// claimsAccessor is satisfied by RegisteredClaims (and anything embedding it),
+// letting ParseClaims validate the registered claims straight from the parsed
+// struct without a second unmarshal.
+type claimsAccessor interface {
 	GetExpirationTime() (*NumericDate, error)
 	GetNotBefore() (*NumericDate, error)
+	GetIssuedAt() (*NumericDate, error)
+	GetIssuer() (string, error)
+	GetAudience() (ClaimStrings, error)
 }

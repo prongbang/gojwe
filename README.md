@@ -12,9 +12,11 @@ go get github.com/prongbang/gojwe
 
 ## Features
 
-- 🔒 **Secure by default** — automatic `exp` / `nbf` claim validation (with clock-skew leeway) and constant-time signature comparison to prevent timing attacks.
-- ⚡ **Easy to use** — built-in key generation, typed sentinel errors for `errors.Is`, and a safe constructor.
-- 🚀 **Fast** — ChaCha20 / XChaCha20 run at ~1µs/op.
+- 🔒 **Secure by default** — automatic `exp` / `nbf` validation (with clock-skew leeway), optional `aud` / `iss` / `iat` validation, constant-time signature comparison, and HKDF key separation for the ChaCha variants.
+- ⚡ **Easy to use** — built-in key generation, typed `RegisteredClaims`, sentinel errors for `errors.Is`, and a safe constructor.
+- 🚀 **Fast** — ChaCha20 / XChaCha20 run at ~1.4µs/op.
+
+> ⚠️ **v2 breaking change:** the ChaCha20 / XChaCha20 token format changed — HKDF is now used to derive separate encryption and MAC keys from your key. **Tokens issued by v1.x cannot be read by v2 and vice versa.** The `AES-GCM-256` format is unchanged. Roll over by re-issuing tokens; there is no in-place migration.
 
 ## Random Secret Key
 
@@ -115,7 +117,7 @@ they are present:
 - `nbf` (not before) — rejected with `ErrTokenNotYetValid` until reached.
 
 A default clock-skew tolerance of 30s (`gojwe.DefaultLeeway`) is applied. Tune or
-disable it via options:
+disable it, and optionally enforce `aud` / `iss` / `iat`, via options:
 
 ```go
 // Custom clock-skew tolerance
@@ -123,6 +125,13 @@ j := gojwe.New(gojwe.ChaCha20, gojwe.WithLeeway(2*time.Minute))
 
 // Skip time validation and get raw claims back
 j := gojwe.New(gojwe.ChaCha20, gojwe.WithoutTimeValidation())
+
+// Require a matching audience and issuer (rejected otherwise)
+j := gojwe.New(gojwe.ChaCha20,
+    gojwe.WithAudience("api"),          // aud must contain "api"
+    gojwe.WithIssuer("auth.example.com"), // iss must equal this
+    gojwe.WithIssuedAtValidation(),      // reject tokens with a future iat
+)
 ```
 
 ## Registered claims (typed)
@@ -170,11 +179,26 @@ case errors.Is(err, gojwe.ErrInvalidSignature):
     // tampered or wrong key
 case errors.Is(err, gojwe.ErrInvalidKeySize):
     // key is not 32 bytes
+case errors.Is(err, gojwe.ErrInvalidAudience):
+    // aud does not match WithAudience
 }
 ```
 
 Available: `ErrUnsupportedAlgorithm`, `ErrInvalidKeySize`, `ErrInvalidToken`,
-`ErrInvalidSignature`, `ErrTokenExpired`, `ErrTokenNotYetValid`.
+`ErrInvalidSignature`, `ErrTokenExpired`, `ErrTokenNotYetValid`,
+`ErrTokenUsedBeforeIssued`, `ErrInvalidAudience`, `ErrInvalidIssuer`.
+
+## Security notes
+
+- **AES-GCM-256** delegates to [`lestrrat-go/jwx`](https://github.com/lestrrat-go/jwx)
+  and produces standard RFC 7516 JWE (`A256GCMKW` + `A256GCM`). Prefer it for
+  interoperability and for security-critical use.
+- **ChaCha20 / XChaCha20** use a compact `header.ciphertext.signature` format
+  specific to this library (not interoperable with other JWE implementations).
+  The encryption and HMAC keys are derived separately from your key via
+  HKDF-SHA256, so the same key is never reused across primitives.
+- Always use a full-entropy 32-byte key — generate one with `gojwe.GenerateKey()`.
+- Tokens larger than `gojwe.MaxTokenBytes` (1 MiB) are rejected up front.
 
 ## Safe constructor
 

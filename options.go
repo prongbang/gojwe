@@ -11,6 +11,9 @@ const DefaultLeeway = 30 * time.Second
 type options struct {
 	leeway       time.Duration
 	validateTime bool
+	validateIat  bool
+	expectedIss  string
+	expectedAud  string
 }
 
 func defaultOptions() options {
@@ -18,6 +21,11 @@ func defaultOptions() options {
 		leeway:       DefaultLeeway,
 		validateTime: true,
 	}
+}
+
+// needsValidation reports whether any claim validation is configured.
+func (o options) needsValidation() bool {
+	return o.validateTime || o.expectedIss != "" || o.expectedAud != ""
 }
 
 // Option configures a JWE instance created by New / NewWithError.
@@ -34,6 +42,25 @@ func WithLeeway(d time.Duration) Option {
 // intend to validate expiry yourself.
 func WithoutTimeValidation() Option {
 	return func(o *options) { o.validateTime = false }
+}
+
+// WithIssuedAtValidation enables rejecting tokens whose "iat" (issued at) claim
+// is in the future (beyond the configured leeway). It is off by default because
+// a fast issuer clock should not normally invalidate an otherwise-good token.
+func WithIssuedAtValidation() Option {
+	return func(o *options) { o.validateIat = true }
+}
+
+// WithIssuer requires the token's "iss" claim to equal the given issuer.
+// Tokens with a different or missing issuer are rejected with ErrInvalidIssuer.
+func WithIssuer(iss string) Option {
+	return func(o *options) { o.expectedIss = iss }
+}
+
+// WithAudience requires the token's "aud" claim to contain the given audience.
+// Tokens without it are rejected with ErrInvalidAudience.
+func WithAudience(aud string) Option {
+	return func(o *options) { o.expectedAud = aud }
 }
 
 func applyOptions(opts []Option) options {

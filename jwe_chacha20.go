@@ -56,8 +56,11 @@ func (j *JweChaCha20) generate(payloadByte []byte, key []byte) (string, error) {
 		return "", err
 	}
 
+	// Derive independent encryption and MAC keys (key separation)
+	encKey, macKey := deriveKeys(key)
+
 	// Encrypt payload
-	serialize, err := j.encrypt(payloadByte, key)
+	serialize, err := j.encrypt(payloadByte, encKey)
 	if err != nil {
 		return "", err
 	}
@@ -66,7 +69,7 @@ func (j *JweChaCha20) generate(payloadByte []byte, key []byte) (string, error) {
 	headerB64 := encodeHeaderB64("C20P", serialize.Iv, serialize.Tag)
 
 	// Generate signature
-	signature := HMAC(headerB64, serialize.Cipher, key)
+	signature := HMAC(headerB64, serialize.Cipher, macKey)
 
 	// Combine header.payload.signature
 	return headerB64 + "." + serialize.Cipher + "." + signature, nil
@@ -89,8 +92,8 @@ func (j *JweChaCha20) Parse(token string, key []byte) (map[string]any, error) {
 		return nil, err
 	}
 
-	// Validate standard time-based claims (exp/nbf)
-	if err = validateTimeClaims(claims, j.opts); err != nil {
+	// Validate the registered claims (exp/nbf/iat/iss/aud)
+	if err = validateClaims(claims, j.opts); err != nil {
 		return nil, err
 	}
 
@@ -102,6 +105,11 @@ func (j *JweChaCha20) decrypt(token string, key []byte) ([]byte, error) {
 	if err := validateKey(key); err != nil {
 		return nil, err
 	}
+	if len(token) > MaxTokenBytes {
+		return nil, ErrInvalidToken
+	}
+
+	encKey, macKey := deriveKeys(key)
 
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 {
@@ -111,22 +119,34 @@ func (j *JweChaCha20) decrypt(token string, key []byte) ([]byte, error) {
 	headerB64, cipherB64, receivedSignature := parts[0], parts[1], parts[2]
 
 	// Decode header
-	headerJSON, _ := base64.RawURLEncoding.DecodeString(headerB64)
+	headerJSON, err := base64.RawURLEncoding.DecodeString(headerB64)
+	if err != nil {
+		return nil, ErrInvalidToken
+	}
 	var header Header
 	if err := json.Unmarshal(headerJSON, &header); err != nil {
-		return nil, err
+		return nil, ErrInvalidToken
 	}
 
 	// Verify signature using a constant-time comparison to avoid timing attacks
-	expectedSignature := HMAC(headerB64, cipherB64, key)
+	expectedSignature := HMAC(headerB64, cipherB64, macKey)
 	if !hmac.Equal([]byte(receivedSignature), []byte(expectedSignature)) {
 		return nil, ErrInvalidSignature
 	}
 
 	// Decode nonce, ciphertext, and tag
-	nonce, _ := base64.RawURLEncoding.DecodeString(header.Iv)
-	tag, _ := base64.RawURLEncoding.DecodeString(header.Tag)
-	ciphertext, _ := base64.RawURLEncoding.DecodeString(cipherB64)
+	nonce, err := base64.RawURLEncoding.DecodeString(header.Iv)
+	if err != nil {
+		return nil, ErrInvalidToken
+	}
+	tag, err := base64.RawURLEncoding.DecodeString(header.Tag)
+	if err != nil {
+		return nil, ErrInvalidToken
+	}
+	ciphertext, err := base64.RawURLEncoding.DecodeString(cipherB64)
+	if err != nil {
+		return nil, ErrInvalidToken
+	}
 
 	// Join ciphertext and tag into a single buffer for decryption
 	fullCiphertext := make([]byte, 0, len(ciphertext)+len(tag))
@@ -134,7 +154,7 @@ func (j *JweChaCha20) decrypt(token string, key []byte) ([]byte, error) {
 	fullCiphertext = append(fullCiphertext, tag...)
 
 	// Decrypt payload
-	aead, err := chacha20poly1305.New(key)
+	aead, err := chacha20poly1305.New(encKey)
 	if err != nil {
 		return nil, err
 	}

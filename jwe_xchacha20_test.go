@@ -61,7 +61,7 @@ func TestXChaCha20Verify(t *testing.T) {
 			name: "Should return true when verify success",
 			args: args{
 				key:   xChaCha20Key,
-				token: "eyJhbGciOiJkaXIiLCJlbmMiOiJYQzIwUCIsIml2IjoiNDIzMzQwdFJyMHRZT1lRR1M5OVYzb3hVbzZxbHQ0eGsiLCJ0YWciOiJTa1BZeS1TM243Y2RlSVQ1bGQ1UDl3In0.d6MSkUX8HlGOkonJr2IcutfPSg.F-LyJPPAPCzA8buyo6DDwVNYQc4QdMTMjk95zaoT7IQ",
+				token: "eyJhbGciOiJkaXIiLCJlbmMiOiJYQzIwUCIsIml2IjoiMkJmLVJUODJJVWtQLXdSeFBpeGhVYTNfblQwYkpUNXciLCJ0YWciOiJqdUc5dTJxWjU3a2hrNDYyZFZhU1hnIn0.Q9qm75BaBp6cSGWxGrn4kn9bGg.NIunAzSOTaFdUHIcNOPrSEiIizjbV_0HGUA7dZR8mG0",
 			},
 			want: true,
 		},
@@ -91,7 +91,7 @@ func TestXChaCha20Parse(t *testing.T) {
 			name: "Should return exp payload when parse success",
 			args: args{
 				key:   xChaCha20Key,
-				token: "eyJhbGciOiJkaXIiLCJlbmMiOiJYQzIwUCIsIml2IjoiNDIzMzQwdFJyMHRZT1lRR1M5OVYzb3hVbzZxbHQ0eGsiLCJ0YWciOiJTa1BZeS1TM243Y2RlSVQ1bGQ1UDl3In0.d6MSkUX8HlGOkonJr2IcutfPSg.F-LyJPPAPCzA8buyo6DDwVNYQc4QdMTMjk95zaoT7IQ",
+				token: "eyJhbGciOiJkaXIiLCJlbmMiOiJYQzIwUCIsIml2IjoiMkJmLVJUODJJVWtQLXdSeFBpeGhVYTNfblQwYkpUNXciLCJ0YWciOiJqdUc5dTJxWjU3a2hrNDYyZFZhU1hnIn0.Q9qm75BaBp6cSGWxGrn4kn9bGg.NIunAzSOTaFdUHIcNOPrSEiIizjbV_0HGUA7dZR8mG0",
 			},
 			want:    "99999999999",
 			wantErr: false,
@@ -122,7 +122,7 @@ func BenchmarkXChaCha20Generate(b *testing.B) {
 
 func BenchmarkXChaCha20Parse(b *testing.B) {
 	j := gojwe.New(gojwe.XChaCha20)
-	jwe := "eyJhbGciOiJkaXIiLCJlbmMiOiJYQzIwUCIsIml2IjoiNDIzMzQwdFJyMHRZT1lRR1M5OVYzb3hVbzZxbHQ0eGsiLCJ0YWciOiJTa1BZeS1TM243Y2RlSVQ1bGQ1UDl3In0.d6MSkUX8HlGOkonJr2IcutfPSg.F-LyJPPAPCzA8buyo6DDwVNYQc4QdMTMjk95zaoT7IQ"
+	jwe := "eyJhbGciOiJkaXIiLCJlbmMiOiJYQzIwUCIsIml2IjoiMkJmLVJUODJJVWtQLXdSeFBpeGhVYTNfblQwYkpUNXciLCJ0YWciOiJqdUc5dTJxWjU3a2hrNDYyZFZhU1hnIn0.Q9qm75BaBp6cSGWxGrn4kn9bGg.NIunAzSOTaFdUHIcNOPrSEiIizjbV_0HGUA7dZR8mG0"
 	for i := 0; i < b.N; i++ {
 		_, _ = j.Parse(jwe, xChaCha20Key)
 	}
@@ -130,7 +130,7 @@ func BenchmarkXChaCha20Parse(b *testing.B) {
 
 func BenchmarkXChaCha20Verify(b *testing.B) {
 	j := gojwe.New(gojwe.XChaCha20)
-	jwe := "eyJhbGciOiJkaXIiLCJlbmMiOiJYQzIwUCIsIml2IjoiNDIzMzQwdFJyMHRZT1lRR1M5OVYzb3hVbzZxbHQ0eGsiLCJ0YWciOiJTa1BZeS1TM243Y2RlSVQ1bGQ1UDl3In0.d6MSkUX8HlGOkonJr2IcutfPSg.F-LyJPPAPCzA8buyo6DDwVNYQc4QdMTMjk95zaoT7IQ"
+	jwe := "eyJhbGciOiJkaXIiLCJlbmMiOiJYQzIwUCIsIml2IjoiMkJmLVJUODJJVWtQLXdSeFBpeGhVYTNfblQwYkpUNXciLCJ0YWciOiJqdUc5dTJxWjU3a2hrNDYyZFZhU1hnIn0.Q9qm75BaBp6cSGWxGrn4kn9bGg.NIunAzSOTaFdUHIcNOPrSEiIizjbV_0HGUA7dZR8mG0"
 	for i := 0; i < b.N; i++ {
 		_ = j.Verify(jwe, xChaCha20Key)
 	}

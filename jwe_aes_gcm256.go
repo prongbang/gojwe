@@ -51,8 +51,8 @@ func (j *JweAesGcm256) Parse(token string, key []byte) (map[string]any, error) {
 		return nil, err
 	}
 
-	// Validate standard time-based claims (exp/nbf)
-	if err = validateTimeClaims(claims, j.opts); err != nil {
+	// Validate the registered claims (exp/nbf/iat/iss/aud)
+	if err = validateClaims(claims, j.opts); err != nil {
 		return nil, err
 	}
 
@@ -63,6 +63,9 @@ func (j *JweAesGcm256) Parse(token string, key []byte) (map[string]any, error) {
 func (j *JweAesGcm256) decrypt(token string, key []byte) ([]byte, error) {
 	if err := validateKey(key); err != nil {
 		return nil, err
+	}
+	if len(token) > MaxTokenBytes {
+		return nil, ErrInvalidToken
 	}
 	return jwe.Decrypt([]byte(token), jwe.WithKey(jwa.A256GCMKW, key))
 }

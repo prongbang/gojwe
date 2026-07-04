@@ -152,3 +152,93 @@ func TestTamperedTokenIsRejected(t *testing.T) {
 		}
 	}
 }
+
+func TestAudienceValidation(t *testing.T) {
+	key := gojwe.MustGenerateKey()
+	for _, alg := range allAlgs() {
+		gen := gojwe.New(alg)
+		token, _ := gen.Generate(map[string]any{
+			"aud": []any{"api", "web"},
+			"exp": time.Now().Add(time.Hour).Unix(),
+		}, key)
+
+		// Correct audience passes.
+		ok := gojwe.New(alg, gojwe.WithAudience("web"))
+		if _, err := ok.Parse(token, key); err != nil {
+			t.Fatalf("[%s] Parse() with matching audience error = %v", alg, err)
+		}
+
+		// Wrong audience is rejected.
+		bad := gojwe.New(alg, gojwe.WithAudience("mobile"))
+		if _, err := bad.Parse(token, key); !errors.Is(err, gojwe.ErrInvalidAudience) {
+			t.Fatalf("[%s] Parse() error = %v, want ErrInvalidAudience", alg, err)
+		}
+	}
+}
+
+func TestIssuerValidation(t *testing.T) {
+	key := gojwe.MustGenerateKey()
+	for _, alg := range allAlgs() {
+		gen := gojwe.New(alg)
+		token, _ := gen.Generate(map[string]any{
+			"iss": "auth.example.com",
+			"exp": time.Now().Add(time.Hour).Unix(),
+		}, key)
+
+		ok := gojwe.New(alg, gojwe.WithIssuer("auth.example.com"))
+		if _, err := ok.Parse(token, key); err != nil {
+			t.Fatalf("[%s] Parse() with matching issuer error = %v", alg, err)
+		}
+
+		bad := gojwe.New(alg, gojwe.WithIssuer("evil.example.com"))
+		if _, err := bad.Parse(token, key); !errors.Is(err, gojwe.ErrInvalidIssuer) {
+			t.Fatalf("[%s] Parse() error = %v, want ErrInvalidIssuer", alg, err)
+		}
+	}
+}
+
+func TestIssuedAtValidation(t *testing.T) {
+	key := gojwe.MustGenerateKey()
+	for _, alg := range allAlgs() {
+		gen := gojwe.New(alg)
+		token, _ := gen.Generate(map[string]any{
+			"iat": time.Now().Add(time.Hour).Unix(), // issued in the future
+		}, key)
+
+		// Off by default: future iat is tolerated.
+		if _, err := gojwe.New(alg).Parse(token, key); err != nil {
+			t.Fatalf("[%s] Parse() without iat validation error = %v", alg, err)
+		}
+
+		// Opt-in: future iat is rejected.
+		strict := gojwe.New(alg, gojwe.WithIssuedAtValidation())
+		if _, err := strict.Parse(token, key); !errors.Is(err, gojwe.ErrTokenUsedBeforeIssued) {
+			t.Fatalf("[%s] Parse() error = %v, want ErrTokenUsedBeforeIssued", alg, err)
+		}
+	}
+}
+
+func TestWrongKeyCannotDecrypt(t *testing.T) {
+	for _, alg := range allAlgs() {
+		j := gojwe.New(alg)
+		token, _ := j.Generate(map[string]any{"sub": "x", "exp": time.Now().Add(time.Hour).Unix()}, gojwe.MustGenerateKey())
+		if _, err := j.Parse(token, gojwe.MustGenerateKey()); err == nil {
+			t.Fatalf("[%s] Parse() with wrong key succeeded, want error", alg)
+		}
+	}
+}
+
+func TestParseClaimsAudienceValidation(t *testing.T) {
+	key := gojwe.MustGenerateKey()
+	j := gojwe.New(gojwe.ChaCha20, gojwe.WithAudience("api"))
+	genJ := gojwe.New(gojwe.ChaCha20)
+
+	token, _ := gojwe.GenerateClaims(genJ, gojwe.RegisteredClaims{
+		Audience:  gojwe.ClaimStrings{"web"},
+		ExpiresAt: gojwe.NewNumericDate(time.Now().Add(time.Hour)),
+	}, key)
+
+	if _, err := gojwe.ParseClaims[gojwe.RegisteredClaims](j, token, key); !errors.Is(err, gojwe.ErrInvalidAudience) {
+		t.Fatalf("ParseClaims() error = %v, want ErrInvalidAudience", err)
+	}
+}
