@@ -42,13 +42,17 @@ func (j *JweXChaCha20) encrypt(payload []byte, key []byte) (*Serialize, error) {
 }
 
 func (j *JweXChaCha20) Generate(payload map[string]any, key []byte) (string, error) {
-	if err := validateKey(key); err != nil {
-		return "", err
-	}
-
-	// Convert payload to string
+	// Convert payload to JSON
 	payloadByte, err := json.Marshal(payload)
 	if err != nil {
+		return "", err
+	}
+	return j.generate(payloadByte, key)
+}
+
+// generate encrypts already-marshalled JSON payload bytes into a token.
+func (j *JweXChaCha20) generate(payloadByte []byte, key []byte) (string, error) {
+	if err := validateKey(key); err != nil {
 		return "", err
 	}
 
@@ -58,12 +62,8 @@ func (j *JweXChaCha20) Generate(payload map[string]any, key []byte) (string, err
 		return "", err
 	}
 
-	// Create JWE Header
-	header := Header{Alg: "dir", Enc: "XC20P", Iv: serialize.Iv, Tag: serialize.Tag}
-
-	// Encode header as Base64
-	headerJSON, _ := json.Marshal(header)
-	headerB64 := base64.RawURLEncoding.EncodeToString(headerJSON)
+	// Build the base64url-encoded JWE header (alg=dir, enc=XC20P)
+	headerB64 := encodeHeaderB64("XC20P", serialize.Iv, serialize.Tag)
 
 	// Generate signature
 	signature := HMAC(headerB64, serialize.Cipher, key)
@@ -79,6 +79,27 @@ func (j *JweXChaCha20) Verify(token string, key []byte) bool {
 }
 
 func (j *JweXChaCha20) Parse(token string, key []byte) (map[string]any, error) {
+	plaintext, err := j.decrypt(token, key)
+	if err != nil {
+		return nil, err
+	}
+
+	// Parse the decrypted payload
+	claims := map[string]any{}
+	if err = json.Unmarshal(plaintext, &claims); err != nil {
+		return nil, err
+	}
+
+	// Validate standard time-based claims (exp/nbf)
+	if err = validateTimeClaims(claims, j.opts); err != nil {
+		return nil, err
+	}
+
+	return claims, nil
+}
+
+// decrypt verifies the signature and returns the raw JSON payload bytes.
+func (j *JweXChaCha20) decrypt(token string, key []byte) ([]byte, error) {
 	if err := validateKey(key); err != nil {
 		return nil, err
 	}
@@ -93,8 +114,7 @@ func (j *JweXChaCha20) Parse(token string, key []byte) (map[string]any, error) {
 	// Decode header
 	headerJSON, _ := base64.RawURLEncoding.DecodeString(headerB64)
 	var header Header
-	err := json.Unmarshal(headerJSON, &header)
-	if err != nil {
+	if err := json.Unmarshal(headerJSON, &header); err != nil {
 		return nil, err
 	}
 
@@ -125,16 +145,7 @@ func (j *JweXChaCha20) Parse(token string, key []byte) (map[string]any, error) {
 		return nil, ErrInvalidSignature
 	}
 
-	// Parse the decrypted payload
-	claims := map[string]any{}
-	if err = json.Unmarshal(plaintext, &claims); err != nil {
-		return nil, err
-	}
-
-	// Validate standard time-based claims (exp/nbf)
-	if err = validateTimeClaims(claims, j.opts); err != nil {
-		return nil, err
-	}
-
-	return claims, nil
+	return plaintext, nil
 }
+
+func (j *JweXChaCha20) getOptions() options { return j.opts }

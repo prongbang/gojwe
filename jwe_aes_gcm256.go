@@ -11,13 +11,17 @@ type JweAesGcm256 struct {
 }
 
 func (j *JweAesGcm256) Generate(payload map[string]any, key []byte) (string, error) {
-	if err := validateKey(key); err != nil {
-		return "", err
-	}
-
-	// Convert payload to string
+	// Convert payload to JSON
 	payloadByte, err := json.Marshal(payload)
 	if err != nil {
+		return "", err
+	}
+	return j.generate(payloadByte, key)
+}
+
+// generate encrypts already-marshalled JSON payload bytes into a token.
+func (j *JweAesGcm256) generate(payloadByte []byte, key []byte) (string, error) {
+	if err := validateKey(key); err != nil {
 		return "", err
 	}
 
@@ -36,11 +40,7 @@ func (j *JweAesGcm256) Verify(token string, key []byte) bool {
 }
 
 func (j *JweAesGcm256) Parse(token string, key []byte) (map[string]any, error) {
-	if err := validateKey(key); err != nil {
-		return nil, err
-	}
-
-	decrypted, err := jwe.Decrypt([]byte(token), jwe.WithKey(jwa.A256GCMKW, key))
+	decrypted, err := j.decrypt(token, key)
 	if err != nil {
 		return nil, err
 	}
@@ -58,3 +58,13 @@ func (j *JweAesGcm256) Parse(token string, key []byte) (map[string]any, error) {
 
 	return claims, nil
 }
+
+// decrypt verifies and decrypts a token, returning the raw JSON payload bytes.
+func (j *JweAesGcm256) decrypt(token string, key []byte) ([]byte, error) {
+	if err := validateKey(key); err != nil {
+		return nil, err
+	}
+	return jwe.Decrypt([]byte(token), jwe.WithKey(jwa.A256GCMKW, key))
+}
+
+func (j *JweAesGcm256) getOptions() options { return j.opts }

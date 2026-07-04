@@ -139,19 +139,27 @@ func (s *ClaimStrings) UnmarshalJSON(b []byte) error {
 }
 
 // GenerateClaims marshals any struct (typically one embedding RegisteredClaims)
-// into an encrypted token. It is a convenience wrapper around JWE.Generate that
-// lets you work with typed claims instead of building a map by hand.
+// into an encrypted token. It is a convenience wrapper that lets you work with
+// typed claims instead of building a map by hand.
 //
 //	claims := gojwe.RegisteredClaims{
 //	    Subject:   "user-1",
 //	    ExpiresAt: gojwe.NewNumericDate(time.Now().Add(time.Hour)),
 //	}
 //	token, err := gojwe.GenerateClaims(j, claims, key)
+//
+// For the built-in algorithms the struct is encrypted directly from its JSON
+// bytes, skipping the map[string]any round-trip.
 func GenerateClaims(j JWE, claims any, key []byte) (string, error) {
 	b, err := json.Marshal(claims)
 	if err != nil {
 		return "", err
 	}
+	// Fast path: encrypt the struct's JSON bytes directly.
+	if rc, ok := j.(rawCodec); ok {
+		return rc.generate(b, key)
+	}
+	// Fallback for custom JWE implementations that only expose Generate.
 	payload := map[string]any{}
 	if err := json.Unmarshal(b, &payload); err != nil {
 		return "", err
@@ -166,18 +174,72 @@ func GenerateClaims(j JWE, claims any, key []byte) (string, error) {
 //	claims, err := gojwe.ParseClaims[gojwe.RegisteredClaims](j, token, key)
 //
 // T may be RegisteredClaims or any struct embedding it alongside your own fields.
+// For the built-in algorithms the payload is unmarshalled straight into T,
+// skipping the map[string]any round-trip.
 func ParseClaims[T any](j JWE, token string, key []byte) (T, error) {
 	var claims T
-	m, err := j.Parse(token, key)
-	if err != nil {
+
+	rc, ok := j.(rawCodec)
+	if !ok {
+		// Fallback for custom JWE implementations that only expose Parse.
+		m, err := j.Parse(token, key)
+		if err != nil {
+			return claims, err
+		}
+		b, err := json.Marshal(m)
+		if err != nil {
+			return claims, err
+		}
+		err = json.Unmarshal(b, &claims)
 		return claims, err
 	}
-	b, err := json.Marshal(m)
+
+	// Fast path: decrypt once, unmarshal straight into T.
+	b, err := rc.decrypt(token, key)
 	if err != nil {
 		return claims, err
 	}
 	if err := json.Unmarshal(b, &claims); err != nil {
 		return claims, err
 	}
+	if err := validateParsedTime(claims, b, rc.getOptions()); err != nil {
+		return claims, err
+	}
 	return claims, nil
+}
+
+// validateParsedTime enforces exp/nbf on an already-parsed claims value. When
+// the value implements timeClaimsAccessor (i.e. embeds RegisteredClaims) the
+// times are read straight from it; otherwise they are pulled from the raw JSON
+// with a single lightweight unmarshal.
+func validateParsedTime(claims any, raw []byte, opts options) error {
+	if !opts.validateTime {
+		return nil
+	}
+	now := nowFunc()
+
+	if acc, ok := claims.(timeClaimsAccessor); ok {
+		if exp, _ := acc.GetExpirationTime(); exp != nil && now.After(exp.Add(opts.leeway)) {
+			return ErrTokenExpired
+		}
+		if nbf, _ := acc.GetNotBefore(); nbf != nil && now.Add(opts.leeway).Before(nbf.Time) {
+			return ErrTokenNotYetValid
+		}
+		return nil
+	}
+
+	var tc struct {
+		Exp *float64 `json:"exp"`
+		Nbf *float64 `json:"nbf"`
+	}
+	if err := json.Unmarshal(raw, &tc); err != nil {
+		return nil // no recognizable time claims to enforce
+	}
+	if tc.Exp != nil && now.After(time.Unix(int64(*tc.Exp), 0).Add(opts.leeway)) {
+		return ErrTokenExpired
+	}
+	if tc.Nbf != nil && now.Add(opts.leeway).Before(time.Unix(int64(*tc.Nbf), 0)) {
+		return ErrTokenNotYetValid
+	}
+	return nil
 }
