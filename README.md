@@ -16,8 +16,6 @@ go get github.com/prongbang/gojwe
 - ⚡ **Easy to use** — built-in key generation, typed `RegisteredClaims`, sentinel errors for `errors.Is`, and a safe constructor.
 - 🚀 **Fast** — ChaCha20 / XChaCha20 run at ~1.4µs/op.
 
-> ⚠️ **v2 breaking change:** the ChaCha20 / XChaCha20 token format changed — HKDF is now used to derive separate encryption and MAC keys from your key. **Tokens issued by v1.x cannot be read by v2 and vice versa.** The `AES-GCM-256` format is unchanged. Roll over by re-issuing tokens; there is no in-place migration.
-
 ## Random Secret Key
 
 Generate a secure 32-byte key in Go (no `openssl` needed):
